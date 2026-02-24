@@ -1,0 +1,56 @@
+# FastAPI & Server
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+python-multipart==0.0.9
+
+# AI/ML Core
+torch==2.2.0
+transformers==4.37.2
+sentence-transformers==2.3.1
+openai==1.12.0
+
+# Traditional ML
+scikit-learn==1.4.0
+xgboost==2.0.3
+lightgbm==4.3.0
+numpy==1.26.3
+pandas==2.2.0
+
+# Computer Vision
+pillow==10.2.0
+opencv-python==4.9.0.80
+timm==0.9.12
+open_clip_torch==2.24.0
+
+# Deep Learning & AI Addons
+tensorflow==2.15.0
+chromadb==0.4.22
+qdrant-client==1.7.3
+# Time Series
+prophet==1.1.5
+statsmodels==0.14.1
+
+# NLP
+spacy==3.7.2
+nltk==3.8.1
+
+# Caching & Performance
+redis==5.0.1
+httpx==0.26.0
+aiofiles==23.2.1
+
+# Utilities
+python-dotenv==1.0.1
+pyyaml==6.0.1
+python-jose[cryptography]==3.3.0
+
+# Monitoring
+prometheus-client==0.19.0
+
+# Development
+pytest==8.0.0
+pytest-asyncio==0.23.4
+black==24.1.1
+ruff==0.2.1

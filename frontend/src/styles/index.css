@@ -1,0 +1,5 @@
+@import './fonts.css';
+@import './tailwind.css';
+/* Import macOS Design System */
+@import './macos-design.css';
+@import './theme.css';

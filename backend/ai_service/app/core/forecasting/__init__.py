@@ -1,0 +1,1 @@
+"""Forecasting core module"""
