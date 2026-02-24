@@ -13,6 +13,8 @@ import { RoleSelectionPage } from './auth/role-selection-page';
 
 // Customer Module
 import { CustomerDashboard } from '../modules/customer/pages/CustomerDashboard';
+import { AIEstimatorPage } from '../modules/customer/pages/AIEstimatorPage';
+import { AgriculturePage } from '../modules/customer/pages/AgriculturePage';
 
 // Organization Module
 import { OrganizationDashboard } from '../modules/organization/pages/OrganizationDashboard';
@@ -22,6 +24,9 @@ import { ProviderDashboard } from '../modules/provider/pages/ProviderDashboard';
 
 // Admin Module
 import { AdminDashboard } from '../modules/admin/pages/AdminDashboard';
+
+// Layout
+import { DashboardLayout } from '../shared/components/layout/DashboardLayout';
 
 function App() {
   return (
@@ -38,7 +43,29 @@ function App() {
           path="/customer/dashboard"
           element={
             <RoleGuard allowedRoles={['customer', 'admin']}>
-              <CustomerDashboard />
+              <DashboardLayout>
+                <CustomerDashboard />
+              </DashboardLayout>
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/customer/estimator"
+          element={
+            <RoleGuard allowedRoles={['customer', 'admin']}>
+              <DashboardLayout>
+                <AIEstimatorPage />
+              </DashboardLayout>
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/customer/agriculture"
+          element={
+            <RoleGuard allowedRoles={['customer', 'admin']}>
+              <DashboardLayout>
+                <AgriculturePage />
+              </DashboardLayout>
             </RoleGuard>
           }
         />
@@ -48,7 +75,9 @@ function App() {
           path="/organization/dashboard"
           element={
             <RoleGuard allowedRoles={['organization', 'admin']}>
-              <OrganizationDashboard />
+              <DashboardLayout>
+                <OrganizationDashboard />
+              </DashboardLayout>
             </RoleGuard>
           }
         />
@@ -58,7 +87,9 @@ function App() {
           path="/provider/dashboard"
           element={
             <RoleGuard allowedRoles={['provider', 'admin']}>
-              <ProviderDashboard />
+              <DashboardLayout>
+                <ProviderDashboard />
+              </DashboardLayout>
             </RoleGuard>
           }
         />
@@ -68,7 +99,9 @@ function App() {
           path="/admin/dashboard"
           element={
             <RoleGuard allowedRoles={['admin']}>
-              <AdminDashboard />
+              <DashboardLayout>
+                <AdminDashboard />
+              </DashboardLayout>
             </RoleGuard>
           }
         />

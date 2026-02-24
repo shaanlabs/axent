@@ -7,15 +7,16 @@ export function SignUpPage() {
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
             {/* macOS-style Auth Card Container */}
             <div className="w-full max-w-md">
-                {/* Toolbar */}
-                <div className="toolbar mb-6" style={{ position: 'relative', background: 'var(--surface)' }}>
-                    <Link to="/" className="list-item" style={{ width: 'auto', padding: '0 12px', height: '32px' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                        <span className="text-sm">Back</span>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8 p-4 bg-surface rounded-xl border border-border">
+                    <Link to="/" className="flex items-center gap-2 text-text-secondary hover:text-white transition-colors">
+                        <ArrowLeft className="w-5 h-5" />
+                        <span className="text-sm font-medium">Back</span>
                     </Link>
-                    <div className="toolbar-title mx-auto">
-                        A<span style={{ color: 'var(--primary)' }}>X</span>ENT
+                    <div className="text-lg font-bold">
+                        A<span className="text-primary">X</span>ENT
                     </div>
+                    <div className="w-16"></div> {/* Spacer for centering */}
                 </div>
 
                 {/* Clerk SignUp Component */}

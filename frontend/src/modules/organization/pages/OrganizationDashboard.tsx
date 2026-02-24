@@ -5,7 +5,7 @@ export function OrganizationDashboard() {
     const { user } = useAuth();
 
     return (
-        <div className="content-main">
+        <div className="w-full h-full flex flex-col">
             {/* macOS Toolbar */}
             <div className="toolbar">
                 <div className="toolbar-title">Organization Dashboard</div>

@@ -74,13 +74,14 @@ export function RoleSelectionPage() {
 
     return (
         <div className="min-h-screen bg-background">
-            {/* Toolbar */}
-            <div className="toolbar">
-                <div className="toolbar-title">
-                    A<span style={{ color: 'var(--primary)' }}>X</span>ENT
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8 p-4 bg-surface border-b border-border">
+                <div className="w-16"></div> {/* Spacer for centering */}
+                <div className="text-lg font-bold">
+                    A<span className="text-primary">X</span>ENT
                 </div>
-                <div className="toolbar-actions">
-                    <span className="text-sm text-text-secondary">Welcome, {user?.name}</span>
+                <div className="text-sm text-text-secondary w-16 text-right">
+                    Welcome, {user?.name}
                 </div>
             </div>
 

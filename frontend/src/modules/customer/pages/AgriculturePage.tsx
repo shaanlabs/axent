@@ -1,7 +1,7 @@
 import { Leaf, MapPin, Star, Search } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { Button } from "../../../shared/components/ui/button";
+import { Input } from "../../../shared/components/ui/input";
 
 export function AgriculturePage() {
   const categories = [
@@ -289,7 +289,7 @@ export function AgriculturePage() {
           <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
             Our AI can analyze your farm requirements and recommend the best equipment for your needs
           </p>
-          <Link to="/ai-estimator">
+          <Link to="/customer/estimator">
             <Button
               className="gradient-teal text-[#0B0B0D] px-8 h-12"
             >
