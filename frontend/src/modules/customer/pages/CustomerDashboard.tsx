@@ -1,5 +1,6 @@
 import { Home, Tractor, Zap, Package } from 'lucide-react';
 import { useAuth } from '../../../app/auth/auth-context';
+import { LogisticsTracker } from '../../../shared/components/LogisticsTracker';
 
 export function CustomerDashboard() {
     const { user } = useAuth();
@@ -68,12 +69,23 @@ export function CustomerDashboard() {
 
                 <div className="section-divider"></div>
 
-                {/* Recent Activity */}
+                {/* Active Coordination & Logistics */}
                 <div className="section">
-                    <h2 className="section-title">Recent Activity</h2>
-                    <div className="table-macos">
-                        <div className="table-macos-row">
-                            <p className="text-sm text-text-primary">No recent activity yet</p>
+                    <h2 className="section-title">Active Coordination</h2>
+                    <div className="space-y-6">
+                        <LogisticsTracker
+                            bookingId="BKG-A0932"
+                            machineName="CAT 320 Excavator"
+                            status="in_transit"
+                            operatorStatus="confirmed"
+                            transportStatus="dispatched"
+                        />
+
+                        <div className="table-macos mt-6">
+                            <h3 className="p-4 border-b border-gray-100 font-semibold text-gray-700">Past Rentals</h3>
+                            <div className="table-macos-row">
+                                <p className="text-sm text-text-primary">No previous rentals yet</p>
+                            </div>
                         </div>
                     </div>
                 </div>

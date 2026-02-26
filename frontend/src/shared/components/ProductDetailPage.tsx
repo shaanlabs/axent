@@ -17,10 +17,18 @@ import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Input } from "./ui/input";
 
-export function ProductDetailPage() {
+export default function ProductDetailPage() {
   const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState(0);
   const [offerAmount, setOfferAmount] = useState("");
+
+  const [isBookingFlowOpen, setIsBookingFlowOpen] = useState(false);
+  const [bookingData, setBookingData] = useState({
+    needOperator: false,
+    needTransport: 'self', // 'self' or 'provider'
+    startDate: '',
+    endDate: ''
+  });
 
   const images = [
     "https://images.unsplash.com/photo-1759950345011-ee5a96640e00?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGNhdmF0b3IlMjBjb25zdHJ1Y3Rpb24lMjBzaXRlJTIwZXF1aXBtZW50fGVufDF8fHx8MTc3MTA5ODMyNHww&ixlib=rb-4.1.0&q=80&w=1080",
@@ -197,21 +205,93 @@ export function ProductDetailPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons & Booking Workflow */}
             <div className="space-y-3">
-              <Button className="w-full gradient-gold text-[#0B0B0D] h-12 shadow-glow-gold">
-                Book for Rent
-              </Button>
-              <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" className="border-white/20 h-12">
-                  <Phone className="w-4 h-4 mr-2" />
-                  Call Owner
-                </Button>
-                <Button variant="outline" className="border-white/20 h-12">
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Chat Now
-                </Button>
-              </div>
+              {!isBookingFlowOpen ? (
+                <>
+                  <Button
+                    className="w-full gradient-gold text-[#0B0B0D] h-12 shadow-glow-gold"
+                    onClick={() => setIsBookingFlowOpen(true)}
+                  >
+                    Initiate Booking (Logistics & Operator)
+                  </Button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button variant="outline" className="border-white/20 h-12">
+                      <Phone className="w-4 h-4 mr-2" />
+                      Call Owner
+                    </Button>
+                    <Button variant="outline" className="border-white/20 h-12">
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Chat Now
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="glass-effect rounded-xl p-6 border-2 border-primary/50 bg-[#121212]/90">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-lg text-white">Booking Logistics</h3>
+                    <button onClick={() => setIsBookingFlowOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Operator Requirement */}
+                    <div className="border border-white/10 rounded-lg p-3 bg-white/5">
+                      <p className="text-sm font-semibold text-white mb-2">1. Operator Requirement</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={bookingData.needOperator ? "default" : "outline"}
+                          className={bookingData.needOperator ? "bg-primary text-black flex-1" : "flex-1 border-white/20 hover:bg-white/10 text-white"}
+                          onClick={() => setBookingData({ ...bookingData, needOperator: true })}
+                        >
+                          Need Operator (+₹1500/day)
+                        </Button>
+                        <Button
+                          variant={!bookingData.needOperator ? "default" : "outline"}
+                          className={!bookingData.needOperator ? "bg-primary text-black flex-1" : "flex-1 border-white/20 hover:bg-white/10 text-white"}
+                          onClick={() => setBookingData({ ...bookingData, needOperator: false })}
+                        >
+                          Have My Own
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Transport Requirement */}
+                    <div className="border border-white/10 rounded-lg p-3 bg-white/5">
+                      <p className="text-sm font-semibold text-white mb-2">2. Transport & Delivery</p>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          variant={bookingData.needTransport === 'provider' ? "default" : "outline"}
+                          className={bookingData.needTransport === 'provider' ? "bg-primary text-black justify-start" : "justify-start border-white/20 hover:bg-white/10 text-white"}
+                          onClick={() => setBookingData({ ...bookingData, needTransport: 'provider' })}
+                        >
+                          Provider Delivery (Estimated ₹5000)
+                        </Button>
+                        <Button
+                          variant={bookingData.needTransport === 'self' ? "default" : "outline"}
+                          className={bookingData.needTransport === 'self' ? "bg-primary text-black justify-start" : "justify-start border-white/20 hover:bg-white/10 text-white"}
+                          onClick={() => setBookingData({ ...bookingData, needTransport: 'self' })}
+                        >
+                          Self Pickup (I have a flatbed)
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Time Window */}
+                    <div className="border border-white/10 rounded-lg p-3 bg-white/5">
+                      <p className="text-sm font-semibold text-white mb-2">3. Required Dates</p>
+                      <div className="flex gap-2">
+                        <Input type="date" className="bg-black/50 border-white/10 text-white" />
+                        <span className="text-white self-center">to</span>
+                        <Input type="date" className="bg-black/50 border-white/10 text-white" />
+                      </div>
+                    </div>
+
+                    <Button className="w-full gradient-gold text-[#0B0B0D] h-12 mt-2">
+                      Submit Booking Request
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Make Offer */}

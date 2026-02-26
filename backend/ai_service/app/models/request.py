@@ -99,6 +99,9 @@ class EquipmentData(BaseModel):
     price_per_hour: float
     location: str
     available: bool
+    verification_status: str = "unverified"
+    last_verified_at: Optional[datetime] = None
+    reliability_score: float = 5.00
     image_url: Optional[str] = None
     specifications: Optional[Dict[str, Any]] = None
 

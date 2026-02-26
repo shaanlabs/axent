@@ -90,6 +90,10 @@ create table public.equipment (
   pricing jsonb not null, -- {"per_hour": 500, "per_day": 3500, "per_project": 80000}
   location jsonb not null,
   available boolean default true,
+  availability_state text default 'available' check (availability_state in ('available', 'tentative', 'booked', 'maintenance', 'expired')),
+  verification_status text default 'unverified' check (verification_status in ('verified', 'unverified', 'flagged', 'expired')),
+  last_verified_at timestamp with time zone,
+  reliability_score numeric(4,2) default 5.00,
   specifications jsonb,
   image_url text,
   search_text tsvector,
@@ -105,11 +109,44 @@ create table public.equipment_availability (
   equipment_id uuid not null references public.equipment(id) on delete cascade,
   start_date timestamp with time zone not null,
   end_date timestamp with time zone not null,
-  status text not null check (status in ('booked','maintenance','blocked')),
+  status text not null check (status in ('tentative', 'booked', 'maintenance', 'blocked')),
   created_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
   updated_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null
 );
 create trigger set_updated_at before update on public.equipment_availability for each row execute function update_updated_at();
+
+-- Conflict Prevention: Double Booking Protection
+create or replace function prevent_double_booking()
+returns trigger language plpgsql as $$
+begin
+  if exists (
+    select 1 from public.equipment_availability
+    where equipment_id = new.equipment_id
+      and id IS DISTINCT FROM new.id
+      and status in ('booked', 'tentative', 'maintenance')
+      and (start_date, end_date) overlaps (new.start_date, new.end_date)
+  ) then
+    raise exception 'Overlapping availability conflict for equipment %', new.equipment_id;
+  end if;
+  return new;
+end;
+$$;
+create trigger ensure_no_overlap before insert or update on public.equipment_availability for each row execute function prevent_double_booking();
+
+-- Auto-Expiry / State Machine Logic
+create extension if not exists pg_cron;
+
+create or replace function expire_stale_availability()
+returns void language sql as $$
+  update public.equipment
+  set availability_state = 'expired', available = false, verification_status = 'expired'
+  where last_verified_at < now() - interval '48 hours'
+    and availability_state = 'available';
+$$;
+
+-- Note: In Supabase Dashboard, pg_cron must be enabled. 
+-- The following schedules the expiry function to run every hour.
+-- select cron.schedule('expire_stale_equipment_hourly', '0 * * * *', 'select expire_stale_availability();');
 
 -- C. PROJECTS & BIDS
 
@@ -167,6 +204,116 @@ create table public.rentals (
 );
 create trigger set_updated_at before update on public.rentals for each row execute function update_updated_at();
 
+-- D.1 TRUST & RELIABILITY AUTO-UPDATE LOGIC
+create or replace function update_supplier_reliability_on_rental_change()
+returns trigger language plpgsql security definer as $$
+declare
+  v_provider_id text;
+begin
+  v_provider_id := coalesce(new.owner_user_id, new.owner_org_id::text);
+  if v_provider_id is null then return new; end if;
+
+  insert into public.supplier_reliability (provider_id) values (v_provider_id) on conflict do nothing;
+
+  if old.status != new.status then
+    if new.status = 'completed' then
+      update public.supplier_reliability 
+      set 
+        total_bookings = total_bookings + 1,
+        successful_bookings = successful_bookings + 1,
+        reliability_score = least(5.00, reliability_score + 0.05)
+      where provider_id = v_provider_id;
+    elsif new.status = 'cancelled' and old.status in ('approved', 'active') then
+      update public.supplier_reliability 
+      set 
+        cancellations = cancellations + 1,
+        reliability_score = greatest(1.00, reliability_score - 0.20)
+      where provider_id = v_provider_id;
+    end if;
+  end if;
+  
+  return new;
+end;
+$$;
+create trigger update_reliability_trigger 
+after update on public.rentals 
+for each row execute function update_supplier_reliability_on_rental_change();
+
+-- D.2 INQUIRY ESCALATION ROUTER
+create or replace function process_inquiry_escalations()
+returns void language plpgsql security definer as $$
+declare
+  r record;
+  next_equipment uuid;
+  v_provider_id text;
+begin
+  for r in (
+    select id, equipment_id, start_date, end_date, renter_id 
+    from public.rentals 
+    where status = 'pending' and created_at < now() - interval '15 minutes'
+  ) loop
+    -- 1. Penalize the unresponsive provider for ghosting the inquiry
+    select coalesce(owner_user_id, owner_org_id::text) into v_provider_id
+    from public.equipment where id = r.equipment_id;
+    
+    if v_provider_id is not null then
+       update public.supplier_reliability 
+       set reliability_score = greatest(1.00, reliability_score - 0.10)
+       where provider_id = v_provider_id;
+    end if;
+
+    -- 2. Find alternative equipment (same type/cat, high reliability, local to the original)
+    select e.id into next_equipment
+    from public.equipment e
+    where e.type = (select type from public.equipment where id = r.equipment_id)
+      and e.category = (select category from public.equipment where id = r.equipment_id)
+      and e.id != r.equipment_id
+      and e.availability_state = 'available'
+      and e.deleted_at is null
+    order by e.reliability_score desc, e.last_verified_at desc
+    limit 1;
+    
+    -- 3. Escalate or Cancel
+    if next_equipment is not null then
+      update public.rentals 
+      set 
+        equipment_id = next_equipment, 
+        owner_user_id = (select owner_user_id from public.equipment where id = next_equipment),
+        owner_org_id = (select owner_org_id from public.equipment where id = next_equipment),
+        created_at = now() -- reset the timer for the new provider
+      where id = r.id;
+    else
+      update public.rentals set status = 'cancelled' where id = r.id;
+    end if;
+  end loop;
+end;
+$$;
+
+-- Note: Cron schedule for Escalation Router
+-- select cron.schedule('escalation_router_5m', '*/5 * * * *', 'select process_inquiry_escalations();');
+
+-- D.3 MULTIMODAL AI PIPELINE / COMPRESSION QUEUE
+create table public.media (
+  id uuid primary key default gen_random_uuid(),
+  uploader_id text references public.profiles(id),
+  file_url text not null,
+  file_type text not null,
+  compressed_size_bytes integer,
+  created_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null
+);
+
+create table public.ai_jobs (
+  id uuid primary key default gen_random_uuid(),
+  media_id uuid references public.media(id),
+  job_type text not null check (job_type in ('vision_analysis', 'price_estimation')),
+  status text not null default 'pending' check (status in ('pending', 'processing', 'completed', 'failed')),
+  result jsonb,
+  created_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null
+);
+create trigger set_updated_at before update on public.ai_jobs for each row execute function update_updated_at();
+
+
 create table public.reviews (
   id uuid primary key default gen_random_uuid(),
   rental_id uuid not null references public.rentals(id) on delete cascade,
@@ -178,6 +325,24 @@ create table public.reviews (
   created_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
   constraint unique_review_per_rental_reviewer unique (rental_id, reviewer_id)
 );
+
+create table public.supplier_reliability (
+  id uuid primary key default gen_random_uuid(),
+  provider_id text not null references public.profiles(id) on delete cascade,
+  total_bookings integer default 0,
+  successful_bookings integer default 0,
+  cancellations integer default 0,
+  disputes integer default 0,
+  late_deliveries integer default 0,
+  fake_availability_flags integer default 0,
+  average_response_time_mins integer,
+  reliability_score numeric(4,2) default 5.00,
+  last_calculated_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
+  created_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
+  constraint unique_reliability_provider unique (provider_id)
+);
+create trigger set_updated_at before update on public.supplier_reliability for each row execute function update_updated_at();
 
 create table public.payments (
   id uuid primary key default gen_random_uuid(),
@@ -374,11 +539,17 @@ alter table public.notifications enable row level security;
 alter table public.storage_usage enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.admin_actions enable row level security;
+alter table public.supplier_reliability enable row level security;
 
 -- PROFILES
 create policy "Users can view any profile" on public.profiles for select using (true);
 create policy "Users can update own profile" on public.profiles for update using (requesting_user_id() = id);
 create policy "Current user can insert profile" on public.profiles for insert with check (requesting_user_id() = id);
+
+-- SUPPLIER RELIABILITY
+create policy "Anyone can view supplier reliability" on public.supplier_reliability for select using (true);
+create policy "Deny client insert on supplier reliability" on public.supplier_reliability for insert with check (false);
+create policy "Deny client update on supplier reliability" on public.supplier_reliability for update using (false);
 
 -- ORGANIZATIONS
 create policy "Anyone can view organizations" on public.organizations for select using (true);

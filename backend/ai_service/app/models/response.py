@@ -6,27 +6,31 @@ from datetime import datetime
 
 class PriceEstimateResponse(BaseModel):
     """Response model for price estimation"""
-    estimated_price_per_hour: float = Field(..., description="Estimated price per hour in USD")
+    currency: str = Field(default="INR", description="Currency of the estimate")
+    fair_market_band_min: float = Field(..., description="Minimum fair market price")
+    fair_market_band_max: float = Field(..., description="Maximum fair market price")
+    recommended_hourly_rate: float = Field(..., description="Recommended hourly rate")
     confidence_score: float = Field(..., ge=0, le=1, description="Confidence score (0-1)")
-    price_range_min: float = Field(..., description="Minimum estimated price")
-    price_range_max: float = Field(..., description="Maximum estimated price")
     factors: Dict[str, Any] = Field(..., description="Key pricing factors")
     market_trend: str = Field(..., description="Market trend (increasing, stable, decreasing)")
+    guidance_message: str = Field(..., description="Market guidance description")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "estimated_price_per_hour": 45.50,
+                "currency": "INR",
+                "fair_market_band_min": 1700.0,
+                "fair_market_band_max": 2300.0,
+                "recommended_hourly_rate": 2000.0,
                 "confidence_score": 0.87,
-                "price_range_min": 40.00,
-                "price_range_max": 51.00,
                 "factors": {
                     "condition_impact": 0.95,
                     "age_impact": 0.88,
                     "location_demand": 1.12,
                     "seasonal_factor": 1.05
                 },
-                "market_trend": "stable"
+                "market_trend": "increasing",
+                "guidance_message": "Prices are structured in regional bands to protect supplier margins while ensuring fair customer rates."
             }
         }
 

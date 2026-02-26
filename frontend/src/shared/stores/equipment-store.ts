@@ -22,6 +22,9 @@ export interface Equipment {
     availability: boolean;
     equipmentClass: 'customer' | 'agriculture' | 'industrial';
     visibleToRoles: ('customer' | 'organization' | 'provider' | 'admin')[];
+    verificationStatus: 'verified' | 'unverified' | 'flagged';
+    lastVerifiedAt?: string;
+    reliabilityScore: number;
 }
 
 interface EquipmentStore {

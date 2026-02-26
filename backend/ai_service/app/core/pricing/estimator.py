@@ -13,20 +13,20 @@ class PriceEstimator:
         """Initialize the price estimator"""
         self.model = None
         self.base_prices = {
-            # Agriculture
-            "tractor": 45.0,
-            "harvester": 85.0,
-            "planter": 35.0,
-            "sprayer": 40.0,
+            # Agriculture (Hourly rates in INR)
+            "tractor": 800.0,
+            "harvester": 2500.0,
+            "planter": 600.0,
+            "sprayer": 500.0,
             # Construction
-            "excavator": 95.0,
-            "bulldozer": 110.0,
-            "crane": 150.0,
-            "forklift": 55.0,
+            "excavator": 1800.0,
+            "bulldozer": 2200.0,
+            "crane": 3500.0,
+            "forklift": 1000.0,
             # Industrial
-            "generator": 30.0,
-            "compressor": 25.0,
-            "welder": 20.0,
+            "generator": 400.0,
+            "compressor": 350.0,
+            "welder": 300.0,
         }
         
         self.condition_multipliers = {
@@ -37,13 +37,13 @@ class PriceEstimator:
         }
         
         self.seasonal_multipliers = {
-            "spring": 1.15,  # High demand for agriculture
+            "spring": 1.15,  # High demand for agriculture (e.g., Rabi harvest)
             "summer": 1.1,
             "fall": 1.05,
             "winter": 0.9,
         }
         
-        logger.info("PriceEstimator initialized")
+        logger.info("PriceEstimator initialized for Indian Hyperlocal Market")
     
     def estimate(
         self,
@@ -55,92 +55,69 @@ class PriceEstimator:
         duration_hours: int = None
     ) -> Dict[str, Any]:
         """
-        Estimate equipment price
-        
-        This is a simplified model. In production, this would use:
-        - XGBoost trained on historical rental data
-        - Feature engineering (location demand, seasonality, etc.)
-        - Market trend analysis
+        Estimate Fair Market Price Bands
         """
         # Get base price
         equipment_type_lower = equipment_type.lower()
-        base_price = self.base_prices.get(equipment_type_lower, 50.0)
+        base_price = self.base_prices.get(equipment_type_lower, 1000.0)
         
-        # Apply condition multiplier
+        # Apply multipliers
         condition_mult = self.condition_multipliers.get(condition.lower(), 1.0)
-        
-        # Apply age depreciation (5% per year, max 50%)
         age_mult = max(0.5, 1.0 - (age_years * 0.05))
-        
-        # Apply seasonal multiplier
-        seasonal_mult = 1.0
-        if season:
-            seasonal_mult = self.seasonal_multipliers.get(season.lower(), 1.0)
-        
-        # Location demand factor (simplified - would use real data)
+        seasonal_mult = self.seasonal_multipliers.get(season.lower(), 1.0) if season else 1.0
         location_mult = self._get_location_multiplier(location)
         
-        # Calculate estimated price
+        # Calculate Base Estimated Price
         estimated_price = base_price * condition_mult * age_mult * seasonal_mult * location_mult
         
-        # Add some variance for price range
-        variance = estimated_price * 0.12
-        price_min = max(10.0, estimated_price - variance)
-        price_max = estimated_price + variance
+        # Generate Fair Market Bands instead of fixed point estimates
+        # We use a 15% variance to give suppliers breathing room and avoid race-to-bottom
+        variance = estimated_price * 0.15
+        band_min = max(200.0, estimated_price - variance)
+        band_max = estimated_price + variance
         
-        # Calculate confidence score (simplified)
         confidence = self._calculate_confidence(equipment_type, condition, age_years)
-        
-        # Determine market trend
         trend = self._get_market_trend(equipment_type, season)
         
         return {
-            "estimated_price_per_hour": round(estimated_price, 2),
+            "currency": "INR",
+            "fair_market_band_min": round(band_min, -1), # Round to nearest 10
+            "fair_market_band_max": round(band_max, -1),
+            "recommended_hourly_rate": round(estimated_price, -1),
             "confidence_score": confidence,
-            "price_range_min": round(price_min, 2),
-            "price_range_max": round(price_max, 2),
             "factors": {
                 "condition_impact": condition_mult,
                 "age_impact": round(age_mult, 2),
                 "location_demand": round(location_mult, 2),
                 "seasonal_factor": round(seasonal_mult, 2)
             },
-            "market_trend": trend
+            "market_trend": trend,
+            "guidance_message": "Prices are structured in regional bands to protect supplier margins while ensuring fair customer rates."
         }
     
     def _get_location_multiplier(self, location: str) -> float:
-        """Get location-based demand multiplier"""
-        # Simplified - would use real market data
-        high_demand_areas = ["california", "texas", "florida", "new york"]
+        """Get location-based demand multiplier for Indian regions"""
+        high_demand_agri = ["punjab", "haryana", "maharashtra", "uttar pradesh"]
+        high_demand_const = ["karnataka", "tamil nadu", "delhi", "gujarat"]
         location_lower = location.lower()
         
-        for area in high_demand_areas:
+        for area in high_demand_agri + high_demand_const:
             if area in location_lower:
                 return 1.15
         
         return 1.0
     
     def _calculate_confidence(self, equipment_type: str, condition: str, age: float) -> float:
-        """Calculate prediction confidence score"""
-        confidence = 0.85  # Base confidence
-        
-        # Lower confidence for unknown equipment types
+        confidence = 0.85
         if equipment_type.lower() not in self.base_prices:
             confidence -= 0.15
-        
-        # Lower confidence for very old equipment
         if age > 15:
             confidence -= 0.10
-        
-        # Lower confidence for poor condition (less data)
         if condition.lower() == "poor":
             confidence -= 0.05
-        
         return max(0.5, min(1.0, confidence))
     
     def _get_market_trend(self, equipment_type: str, season: str = None) -> str:
-        """Determine market trend"""
-        # Simplified trend analysis
         if season and season.lower() in ["spring", "summer"]:
             return "increasing"
         elif season and season.lower() == "winter":

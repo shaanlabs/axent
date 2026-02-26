@@ -3,7 +3,7 @@
  * Features: Equipment browsing, AI price estimation, smart recommendations
  */
 import { useState } from 'react';
-import { usePriceEstimate, useRecommendations } from '../../shared/hooks/useAI';
+import { usePriceEstimate, useRecommendations } from '../../../shared/hooks/useAI';
 
 export default function AgriculturePage() {
     const [showEstimator, setShowEstimator] = useState(false);
@@ -162,14 +162,28 @@ export default function AgriculturePage() {
                     <div className="mb-8">
                         <h2 className="text-2xl font-semibold mb-6">🎯 Recommended for You</h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {recommendations.recommendations.slice(0, 6).map((item) => (
+                            {recommendations.recommendations.slice(0, 6).map((item: Record<string, any>) => (
                                 <div key={item.equipment_id} className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition">
                                     <div className="mb-4">
                                         <div className="flex justify-between items-start mb-2">
                                             <h3 className="font-semibold text-lg">{item.name}</h3>
-                                            <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
-                                                {(item.score * 100).toFixed(0)}% Match
-                                            </span>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
+                                                    {(item.score * 100).toFixed(0)}% Match
+                                                </span>
+                                                {/* Verified Badge */}
+                                                {(item.verification_status === "verified" || !item.verification_status) && (
+                                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-semibold flex items-center gap-1">
+                                                        <span>✓</span> Verified Now
+                                                    </span>
+                                                )}
+                                                {/* Reliability Badge */}
+                                                {item.reliability_score && (
+                                                    <span className={`text-xs px-2 py-1 rounded font-semibold flex items-center gap-1 ${item.reliability_score >= 4.5 ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                        <span>⭐</span> {item.reliability_score.toFixed(1)} Reliability
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <p className="text-gray-600 text-sm capitalize">{item.type}</p>
                                     </div>
