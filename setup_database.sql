@@ -48,7 +48,7 @@ create table public.profiles (
   id text primary key, -- Clerk User ID
   email text not null,
   name text,
-  role text not null check (role in ('customer', 'provider', 'organization_owner', 'organization_member', 'admin', 'moderator')) default 'customer',
+  role text not null default 'customer', -- Replaced strict ENUM to allow hybrid usage (e.g., 'customer,provider')
   dashboard_type text default 'customer',
   location jsonb,
   avatar_url text,
@@ -78,6 +78,22 @@ create table public.organization_members (
 );
 
 -- B. EQUIPMENT, AVAILABILITY, REVIEWS
+
+create table public.provider_kyc (
+  id uuid primary key default gen_random_uuid(),
+  provider_id text not null references public.profiles(id) on delete cascade,
+  business_name text,
+  tax_id text,
+  documents jsonb,
+  verification_status text default 'pending' check (verification_status in ('pending', 'approved', 'rejected', 'suspended')),
+  verified_by text references public.profiles(id),
+  verified_at timestamp with time zone,
+  created_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
+  constraint unique_provider_kyc unique (provider_id)
+);
+create trigger set_updated_at before update on public.provider_kyc for each row execute function update_updated_at();
+
 
 create table public.equipment (
   id uuid primary key default gen_random_uuid(),
@@ -196,6 +212,8 @@ create table public.rentals (
   owner_org_id uuid references public.organizations(id),
   start_date timestamp with time zone not null,
   end_date timestamp with time zone not null,
+  operator_status text default 'not_needed' check (operator_status in ('not_needed', 'pending', 'confirmed')),
+  transport_status text default 'self_pickup' check (transport_status in ('self_pickup', 'pending', 'dispatched', 'arrived')),
   total_cost numeric not null,
   status text not null check (status in ('pending', 'approved', 'active', 'completed', 'cancelled')) default 'pending',
   created_at timestamp with time zone default timezone('Asia/Kolkata'::text, now()) not null,
@@ -573,21 +591,33 @@ create policy "Org owners/managers can delete members" on public.organization_me
 
 
 -- EQUIPMENT
-create policy "Anyone can view equipment" on public.equipment for select using (deleted_at is null);
+create policy "Differentiated equipment visibility" on public.equipment for select using (
+  deleted_at is null AND
+  (
+    category != 'industrial' OR
+    requesting_user_id() = owner_user_id OR
+    requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id) OR
+    requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%') OR
+    exists (select 1 from public.organization_members where user_id = requesting_user_id())
+  )
+);
 create policy "Owners/Org Managers can insert equipment" on public.equipment for insert with check (
   (ownership_type = 'user' AND requesting_user_id() = owner_user_id) OR
   (ownership_type = 'organization' AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id and role in ('owner','manager','operator')))
 );
-create policy "Owners/Org Managers can update equipment" on public.equipment for update using (
+create policy "Owners/Managers/Admins can update equipment" on public.equipment for update using (
   (ownership_type = 'user' AND requesting_user_id() = owner_user_id) OR
-  (ownership_type = 'organization' AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id and role in ('owner','manager','operator')))
+  (ownership_type = 'organization' AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id and role in ('owner','manager','operator'))) OR
+  requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%')
 ) with check (
   (ownership_type = 'user' AND requesting_user_id() = owner_user_id) OR
-  (ownership_type = 'organization' AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id and role in ('owner','manager','operator')))
+  (ownership_type = 'organization' AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id and role in ('owner','manager','operator'))) OR
+  requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%')
 );
-create policy "Owners/Org Managers can delete equipment" on public.equipment for delete using (
+create policy "Owners/Managers/Admins can delete equipment" on public.equipment for delete using (
   (ownership_type = 'user' AND requesting_user_id() = owner_user_id) OR
-  (ownership_type = 'organization' AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id and role in ('owner','manager','operator')))
+  (ownership_type = 'organization' AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id and role in ('owner','manager','operator'))) OR
+  requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%')
 );
 
 -- EQUIPMENT AVAILABILITY
@@ -596,13 +626,15 @@ create policy "Owners/Managers can insert equipment availability" on public.equi
   requesting_user_id() in (select owner_user_id from public.equipment where id = equipment_id and ownership_type = 'user') OR
   requesting_user_id() in (select m.user_id from public.equipment e join public.organization_members m on e.owner_org_id = m.organization_id where e.id = equipment_id and e.ownership_type = 'organization' and m.role in ('owner','manager','operator'))
 );
-create policy "Owners/Managers can update equipment availability" on public.equipment_availability for update using (
+create policy "Owners/Managers/Admins can update equipment availability" on public.equipment_availability for update using (
   requesting_user_id() in (select owner_user_id from public.equipment where id = equipment_id and ownership_type = 'user') OR
-  requesting_user_id() in (select m.user_id from public.equipment e join public.organization_members m on e.owner_org_id = m.organization_id where e.id = equipment_id and e.ownership_type = 'organization' and m.role in ('owner','manager','operator'))
+  requesting_user_id() in (select m.user_id from public.equipment e join public.organization_members m on e.owner_org_id = m.organization_id where e.id = equipment_id and e.ownership_type = 'organization' and m.role in ('owner','manager','operator')) OR
+  requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%')
 );
-create policy "Owners/Managers can delete equipment availability" on public.equipment_availability for delete using (
+create policy "Owners/Managers/Admins can delete equipment availability" on public.equipment_availability for delete using (
   requesting_user_id() in (select owner_user_id from public.equipment where id = equipment_id and ownership_type = 'user') OR
-  requesting_user_id() in (select m.user_id from public.equipment e join public.organization_members m on e.owner_org_id = m.organization_id where e.id = equipment_id and e.ownership_type = 'organization' and m.role in ('owner','manager','operator'))
+  requesting_user_id() in (select m.user_id from public.equipment e join public.organization_members m on e.owner_org_id = m.organization_id where e.id = equipment_id and e.ownership_type = 'organization' and m.role in ('owner','manager','operator')) OR
+  requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%')
 );
 
 -- PROJECTS
@@ -629,12 +661,20 @@ create policy "Providers can update own bids" on public.bids for update using (r
 -- to prevent project owners from arbitrarily updating the bid_amount or message of another user.
 
 -- RENTALS
-create policy "Renter and Owner can view rental" on public.rentals for select using (
+create policy "Renter and Owner and Admins can view rental" on public.rentals for select using (
   requesting_user_id() = renter_id OR 
   requesting_user_id() = owner_user_id OR
-  (owner_org_id IS NOT NULL AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id))
+  (owner_org_id IS NOT NULL AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id)) OR
+  requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%')
 );
 create policy "Renters can insert rentals" on public.rentals for insert with check (requesting_user_id() = renter_id);
+
+create policy "Parties or admins can update rentals" on public.rentals for update using (
+  requesting_user_id() = renter_id OR 
+  requesting_user_id() = owner_user_id OR
+  (owner_org_id IS NOT NULL AND requesting_user_id() in (select user_id from public.organization_members where organization_id = owner_org_id)) OR
+  requesting_user_id() in (select id from public.profiles where role like '%admin%' or role like '%moderator%')
+);
 
 -- REVIEWS
 create policy "Anyone can view reviews" on public.reviews for select using (true);
